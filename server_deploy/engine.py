@@ -37,6 +37,8 @@ class Engine:
         selected = {}
         for container in all_containers:
             container_name = container["Name"].lstrip("/")
+            if container_name.startswith(self.project.name + "-retained-"):
+                continue
             labels = container["Config"].get("Labels") or {}
             if labels.get("com.docker.compose.project") == self.project.name:
                 service = labels.get("com.docker.compose.service")
@@ -611,6 +613,7 @@ class Engine:
             "development_writers": [],
             "snapshots": [],
             "promoted_dirs": [],
+            "retained_containers": [],
         }
         self.store.write("journal.json", journal)
         try:
@@ -697,6 +700,17 @@ class Engine:
                     self.store.write("journal.json", journal)
                     self.run(["docker", "stop", *writers])
                 self.quiescent(plan["migrations"])
+                for service, container in selected.items():
+                    labels = container["Config"].get("Labels") or {}
+                    if not labels.get("com.docker.compose.config-hash"):
+                        retained_name = (
+                            self.project.name + "-retained-" + container["Id"][:12]
+                        )
+                        journal["retained_containers"].append(
+                            {"id": container["Id"], "name": retained_name}
+                        )
+                        self.store.write("journal.json", journal)
+                        self.run(["docker", "rename", container["Id"], retained_name])
                 journal["snapshots"] = self.project.storage.snapshot(
                     plan_id, self.project.database
                 )

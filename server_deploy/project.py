@@ -170,6 +170,8 @@ class Project:
             }
             spec["labels"]["io.server-deploy.app"] = self.name
             env = spec.get("environment") or {}
+            env.update(self.policy.get("environment", {}).get(service, {}))
+            spec["environment"] = env
             # Resolve environment on the host via a protected production env file.
             if any(isinstance(v, str) and "${" in v for v in env.values()):
                 raise Blocked(
@@ -222,6 +224,7 @@ class Project:
                 "manifest": self.manifest,
                 "compose": self.model,
                 "policy": self.policy,
+                "host_policy": self.config,
                 "environment": env_hash(self.env_files.values()),
             }
         )

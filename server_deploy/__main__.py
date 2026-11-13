@@ -25,7 +25,15 @@ def main():
     parser.add_argument("--seed-development", action="store_true")
     args = parser.parse_args()
     if args.command == "version":
-        print(json.dumps({"version": VERSION, "schema": 1}))
+        print(
+            json.dumps(
+                {
+                    "version": VERSION,
+                    "schema": 1,
+                    "engine_revision": Path(__file__).resolve().parents[1].name,
+                }
+            )
+        )
         return 0
     try:
         if not args.app or not args.source:

@@ -2,7 +2,7 @@
 
 An independent, host-installed deployment engine and reusable GitHub Actions workflow for Docker Compose projects on a Linux Docker/OpenZFS server with Nginx Proxy Manager. It neither imports nor invokes Murphy Deploy. Host policy and credentials stay on the server; projects provide a small deployment manifest.
 
-This is a new implementation. Its automated tests cover planning, failure recovery, secret handling, storage safety, and proxy ownership. Real storage migration and disaster recovery must be rehearsed against disposable resources before relying on them for production.
+This is a new implementation. Its automated tests cover planning, failure recovery, secret handling, storage safety, and proxy ownership. An opt-in rehearsal also exercises a real file-backed ZFS pool, disposable containers, migration, retained original data, boot mounts, held snapshots, health, and exact-artifact rollback. Docker Hub publication and live NPM changes need separate integration validation; the rehearsal stubs publication and proxy calls.
 
 ## Operations
 
@@ -24,7 +24,7 @@ The engine uses explicit manifests instead of trying to guess application roles 
 
 ## Host installation
 
-Run `bash scripts/install.sh` from a reviewed checkout. This installs a root-owned engine under `/opt/server-deploy`. Install Docker/Compose, ZFS, rsync, Git, and Python 3.11+ on the host. Configure `/etc/server-deploy/config.json`, owned by root with mode 0600:
+Run `bash scripts/install.sh` from a clean, committed, reviewed checkout. This installs a root-owned, commit-addressed engine under `/opt/server-deploy/releases` and atomically switches its active symlink. Install Docker/Compose, ZFS, rsync, Git, and Python 3.11+ on the host. Configure `/etc/server-deploy/config.json`, owned by root with mode 0600:
 
 ```json
 {
