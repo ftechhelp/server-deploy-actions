@@ -1,0 +1,60 @@
+name: Shared server deployment
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        required: true
+        type: string
+      operation:
+        type: string
+        default: deploy
+      approvals:
+        type: string
+        default: deployment,downtime
+      manifest:
+        type: string
+        default: deploy/app.json
+      target:
+        type: string
+        default: ''
+      plan-only:
+        type: boolean
+        default: false
+      seed-development:
+        type: boolean
+        default: false
+      runner-label:
+        type: string
+        default: server-deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-deploy-${{ inputs.app }}
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    if: >-
+      (inputs.operation == 'deploy' && github.event_name == 'push' &&
+       github.ref_type == 'tag' && github.event.created == true && github.event.deleted == false) ||
+      (inputs.operation != 'deploy' && github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, linux, x64, '${{ inputs.runner-label }}']
+    timeout-minutes: 60
+    steps:
+      - name: Check out caller source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Plan and operate
+        env:
+          DEPLOY_APP: ${{ inputs.app }}
+          DEPLOY_OPERATION: ${{ inputs.operation }}
+          DEPLOY_APPROVALS: ${{ inputs.approvals }}
+          DEPLOY_MANIFEST: ${{ inputs.manifest }}
+          DEPLOY_TARGET: ${{ inputs.target }}
+          DEPLOY_PLAN_ONLY: ${{ inputs.plan-only }}
+          DEPLOY_SEED: ${{ inputs.seed-development }}
+        run: python3 /opt/server-deploy/scripts/host-action.py

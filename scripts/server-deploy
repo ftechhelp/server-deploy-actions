@@ -1,0 +1,3 @@
+#!/bin/sh
+cd /opt/server-deploy
+exec /usr/bin/python3 -B -m server_deploy "$@"
