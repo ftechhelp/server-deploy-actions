@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from server_deploy.core import Store, run as engine_run
+from server_deploy.core import Blocked, Store, run as engine_run
 from server_deploy.engine import Engine
 from server_deploy.project import Project
 
@@ -181,19 +181,24 @@ with tempfile.TemporaryDirectory(prefix="server-deploy-rehearsal-") as tmp:
                 }
             },
         }
-        engine = Engine.__new__(Engine)
-        engine.config, engine.run = config, run
-        engine.project = Project(config, identifier, source, runner=run)
+
+        def make_engine():
+            instance = Engine.__new__(Engine)
+            instance.config, instance.run = config, run
+            instance.project = Project(config, identifier, source, runner=run)
+            fixture_storage = instance.project.storage
+            fixture_storage.app_dataset = identifier + "/app"
+            fixture_storage.app_root = str(root / "pool/app")
+            fixture_storage.db_dataset = identifier + "/db"
+            fixture_storage.db_root = str(root / "pool/db")
+            instance.store = Store(config["state_root"], identifier)
+            instance.proxy = Mock()
+            instance.proxy.observe.return_value = {}
+            instance.publish = Mock(return_value={"web": digest})
+            return instance
+
+        engine = make_engine()
         storage = engine.project.storage
-        storage.app_dataset, storage.app_root = (
-            identifier + "/app",
-            str(root / "pool/app"),
-        )
-        storage.db_dataset, storage.db_root = identifier + "/db", str(root / "pool/db")
-        engine.store = Store(config["state_root"], identifier)
-        engine.proxy = Mock()
-        engine.proxy.observe.return_value = {}
-        engine.publish = Mock(return_value={"web": digest})
         plan = engine.plan()
         assert set(plan["approvals"]) == {
             "deployment",
@@ -217,6 +222,54 @@ with tempfile.TemporaryDirectory(prefix="server-deploy-rehearsal-") as tmp:
         print(
             "PASS: real ZFS creation, boot mounts, migration, retained source, held snapshots, health, and exact-artifact rollback"
         )
+        destination.parent.rename(destination.parent.with_name("data.retained-success"))
+        plan = engine.plan()
+        engine.activate = Mock(side_effect=KeyboardInterrupt)
+        try:
+            engine.apply(plan["id"], plan["approvals"])
+            raise AssertionError("Interruption was not injected")
+        except KeyboardInterrupt:
+            pass
+        assert engine.store.read("journal.json")["status"] == "activating"
+        engine = make_engine()  # All recovery information must come from durable state.
+        plan = engine.plan("recover")
+        assert engine.apply(plan["id"], plan["approvals"])["status"] == "restored"
+        assert (original_data / "preserve.txt").read_text() == "original data"
+        print("PASS: interrupted-operation recovery from a fresh engine instance")
+        engine = make_engine()
+        plan = engine.plan()
+        desired = engine.project.desired
+
+        def failing_desired(images):
+            bad = desired(images)
+            bad["services"]["web"]["command"] = [
+                "python",
+                "-c",
+                "from pathlib import Path; Path('/data/failed-write.txt').write_text('retain me'); raise SystemExit(1)",
+            ]
+            return bad
+
+        engine.project.desired = failing_desired
+        try:
+            engine.apply(plan["id"], plan["approvals"])
+            raise AssertionError("Unhealthy fixture unexpectedly deployed")
+        except Blocked as error:
+            assert "exit 7" in str(error), error
+        failed = destination.parent.with_name("data.failed-" + plan["id"])
+        assert (failed / "failed-write.txt").read_text() == "retain me"
+        assert not (original_data / "failed-write.txt").exists()
+        assert (original_data / "preserve.txt").read_text() == "original data"
+        print(
+            "PASS: unhealthy deployment restored previous app and retained failed-release writes"
+        )
+        engine = make_engine()
+        plan = engine.plan()
+        assert engine.apply(plan["id"], plan["approvals"])["status"] == "succeeded"
+        plan = engine.plan("accept")
+        assert engine.apply(plan["id"], plan["approvals"])["status"] == "accepted"
+        assert (original_data / "preserve.txt").exists()
+        assert (failed / "failed-write.txt").exists()
+        print("PASS: safe migration retry and acceptance preserve all recovery data")
     finally:
         run(["docker", "rm", "-f", identifier], check=False)
         retained = run(

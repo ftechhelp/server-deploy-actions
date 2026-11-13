@@ -196,5 +196,5 @@ class Proxy:
             actual = restored[domain]
             if old is None and actual is not None:
                 raise Blocked("Proxy removal verification failed")
-            if old and any(old.get(k) != actual.get(k) for k in fields):
+            if old and any(old.get(k) != actual.get(k) for k in fields if k != "meta"):
                 raise Blocked("Proxy restoration verification failed")

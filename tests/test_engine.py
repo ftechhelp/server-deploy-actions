@@ -116,3 +116,10 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["status"], "unchanged")
         self.engine.run.assert_not_called()
         self.engine.project.storage.ensure.assert_not_called()
+
+    def test_saved_plan_identifiers_cannot_escape_state(self):
+        plan = self.plan()
+        self.assertEqual(self.engine.saved_plan("one"), plan)
+        for identifier in ("../../config", "missing", None):
+            with self.assertRaises(Blocked):
+                self.engine.saved_plan(identifier)

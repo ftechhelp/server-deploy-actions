@@ -157,6 +157,10 @@ class Engine:
             raise Blocked(
                 "An interrupted operation needs recovery before another deployment"
             )
+        if operation == "accept" and target:
+            if not re.fullmatch(r"[a-z0-9-]+", target):
+                raise Blocked("Invalid migration operation ID")
+            journal = self.store.read(f"operations/{target}.json")
         observed, selected, routes = self.observe()
         current = self.store.read("current.json")
         if operation in ("rollback", "recreate") and not current:
@@ -252,6 +256,14 @@ class Engine:
                 "data_rollback",
             )
         }
+
+    def saved_plan(self, plan_id):
+        if not plan_id or not re.fullmatch(r"[a-z0-9-]+", plan_id):
+            raise Blocked("Invalid plan identifier")
+        plan = self.store.read(f"plans/{plan_id}.json")
+        if not plan:
+            raise Blocked("Plan does not exist")
+        return plan
 
     def compose(self, path, *args, timeout=600):
         return self.run(
@@ -595,7 +607,8 @@ class Engine:
             journal = plan["prior_journal"]
             journal["migration_accepted"] = True
             journal["status"] = "accepted"
-            self.store.write("journal.json", journal)
+            if (self.store.read("journal.json") or {}).get("id") == journal["id"]:
+                self.store.write("journal.json", journal)
             self.store.write(f"operations/{journal['id']}.json", journal)
             return {
                 "status": "accepted",

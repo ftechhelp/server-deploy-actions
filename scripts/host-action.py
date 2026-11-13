@@ -42,7 +42,12 @@ if os.environ.get("DEPLOY_TARGET"):
     plan_args += ["--target", os.environ["DEPLOY_TARGET"]]
 if os.environ.get("DEPLOY_SEED") == "true":
     plan_args.append("--seed-development")
-plan = call(*plan_args)
+if os.environ.get("DEPLOY_PLAN_ID"):
+    plan = call("show-plan", *base, "--plan", os.environ["DEPLOY_PLAN_ID"])
+    if plan["operation"] != operation:
+        sys.exit("Saved plan operation differs from the requested operation")
+else:
+    plan = call(*plan_args)
 print(json.dumps(plan, indent=2))
 summary = os.environ.get("GITHUB_STEP_SUMMARY")
 if summary:
@@ -56,6 +61,8 @@ if os.environ.get("DEPLOY_PLAN_ONLY") != "true":
         *base,
         "--plan",
         plan["id"],
+        "--operation",
+        operation,
         "--approve",
         os.environ.get("DEPLOY_APPROVALS", "deployment,downtime"),
     )

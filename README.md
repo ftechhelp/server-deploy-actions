@@ -96,7 +96,7 @@ jobs:
 
 New tags deploy their exact source commit. Ordinary branch pushes do not deploy. Initial adoption or migration blocks until its required categories are explicitly approved. A maintenance workflow may call the same workflow with `operation: reconcile`, `approvals: deployment,downtime,adoption,data-migration`, and `plan-only: true` to review the plan, then run again with `plan-only: false`. Never approve categories without reading the plan. Maintenance operations must originate from `workflow_dispatch`; an ordinary pushed tag cannot silently approve migration or adoption.
 
-Use `operation: rollback` with `target: RELEASE_ID` and `approvals: downtime` for application rollback; use `recover` for interrupted operations. `seed-development: true` copies an existing development primary container's data only into vacant production destinations, stops/resumes its writers, and requires migration approval. Original sources and snapshots stay in place after acceptance.
+Use the generated `id` as `plan-id` to apply the exact reviewed plan with `plan-only: false`; plans expire after 15 minutes and drift requires a fresh plan. Without `plan-id`, a run deliberately creates a fresh plan. Use `operation: rollback` with `target: RELEASE_ID` and `approvals: downtime` for application rollback; use `recover` for interrupted operations. `seed-development: true` copies an existing development primary container's data only into vacant production destinations, stops/resumes its writers, and requires migration approval. Original sources and snapshots stay in place after acceptance. To accept a prior verified migration after a later deployment, supply that migration's operation ID as `target`.
 
 ## Validation
 
