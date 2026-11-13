@@ -9,6 +9,7 @@ from .core import (
     fingerprint,
     inside,
     name,
+    mapping,
     no_secrets,
     read_json,
     run,
@@ -66,6 +67,12 @@ class Project:
             cwd=self.source,
         )
         self.model = json.loads(result.stdout)
+        for service in self.model.get("services", {}).values():
+            for key in ("environment", "labels"):
+                if key in service:
+                    service[key] = mapping(service[key])
+            if isinstance(service.get("build"), dict) and "args" in service["build"]:
+                service["build"]["args"] = mapping(service["build"]["args"])
         no_secrets(self.model)
         self.primary = self.manifest["primary"]
         if self.primary not in self.model["services"]:

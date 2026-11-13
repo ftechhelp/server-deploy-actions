@@ -66,7 +66,7 @@ def name(value):
 
 def no_secrets(model):
     for service, spec in model.get("services", {}).items():
-        for key, value in (spec.get("environment") or {}).items():
+        for key, value in mapping(spec.get("environment")).items():
             if re.search(
                 r"PASSWORD|SECRET|TOKEN|API_KEY|PRIVATE_KEY|CREDENTIAL", key, re.I
             ):
@@ -80,11 +80,27 @@ def no_secrets(model):
                 raise Blocked(f"Inline credential in service {service}, variable {key}")
         build = spec.get("build") or {}
         if isinstance(build, dict):
-            for key, value in (build.get("args") or {}).items():
+            for key, value in mapping(build.get("args")).items():
                 if value and re.search(
                     r"PASSWORD|SECRET|TOKEN|KEY|CREDENTIAL", key, re.I
                 ):
                     raise Blocked(f"Secret build argument in service {service}: {key}")
+
+
+def mapping(value):
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise Blocked("Expected a Compose mapping or NAME=value list")
+    result = {}
+    for item in value:
+        key, sep, text = item.partition("=")
+        if key in result:
+            raise Blocked("Duplicate Compose mapping entry")
+        result[key] = text if sep else None
+    return result
 
 
 class Store:

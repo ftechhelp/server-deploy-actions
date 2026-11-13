@@ -89,6 +89,15 @@ class ProjectTests(unittest.TestCase):
         with self.assertRaises(Blocked):
             self.project()
 
+    def test_compose_list_environment_is_normalized(self):
+        self.model["services"]["web"]["environment"] = ["TZ=UTC", "OPTIONAL"]
+        self.model["services"]["web"]["labels"] = ["example=label"]
+        model = self.project().desired({"web": "image"})
+        self.assertEqual(
+            model["services"]["web"]["environment"], {"TZ": "UTC", "OPTIONAL": None}
+        )
+        self.assertEqual(model["services"]["web"]["labels"]["example"], "label")
+
     def test_undeclared_mount_cannot_enter_production(self):
         self.model["services"]["web"]["volumes"].append(
             {"type": "bind", "source": "/", "target": "/host"}
